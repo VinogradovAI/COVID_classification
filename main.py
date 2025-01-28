@@ -11,18 +11,22 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision.models import resnet18
 from sklearn.metrics import classification_report, confusion_matrix
 from PIL import Image
-from collections import Counter
+
+import warnings
+
+warnings.filterwarnings("ignore")
 
 # Установка параметров
 BATCH_SIZE = 32
 LEARNING_RATE = 0.001
-EPOCHS = 15
+EPOCHS = 10
 IMG_SIZE = (224, 224)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {DEVICE}")
 
 # Классы в датасете
 CLASSES = ["COVID", "Normal", "Viral Pneumonia"]
+
 
 # Функция для загрузки данных
 class LungXRayDataset(Dataset):
@@ -53,6 +57,7 @@ class LungXRayDataset(Dataset):
             image = self.transform(image)
 
         return image, label
+
 
 # Применение трансформаций
 transform = transforms.Compose([
@@ -161,7 +166,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, epochs=EP
             torch.save(model.state_dict(), "best_model.pth")
 
     # Запуск обучения
+
+
 train_model(model, train_loader, val_loader, criterion, optimizer)
+
 
 # Оценка модели на тесте
 def evaluate_model(model, test_loader):
@@ -184,6 +192,9 @@ def evaluate_model(model, test_loader):
     report = classification_report(all_labels, all_preds, target_names=CLASSES, digits=4)
     print("Classification Report:\n", report)
 
+    with open("report/classification_report.txt", "w") as file:
+        file.write(report)
+
     # Вывод матрицы ошибок
     cm = confusion_matrix(all_labels, all_preds)
     plt.figure(figsize=(6, 6))
@@ -193,6 +204,9 @@ def evaluate_model(model, test_loader):
     plt.title("Confusion Matrix")
     plt.colorbar()
     plt.show()
+
+    plt.savefig("report/confusion_matrix.png")
+
 
 # Запуск оценки модели
 evaluate_model(model, test_loader)
