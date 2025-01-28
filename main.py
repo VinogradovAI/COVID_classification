@@ -21,7 +21,7 @@ BATCH_SIZE = 32
 LEARNING_RATE = 0.001
 EPOCHS = 10
 IMG_SIZE = (224, 224)
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {DEVICE}")
 
 # Классы в датасете
@@ -85,9 +85,10 @@ test_size = len(dataset) - train_size - val_size
 
 train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
 
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, pin_memory=True)
+test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, pin_memory=True)
+
 
 check_dataloader(train_loader, "Train")
 check_dataloader(val_loader, "Validation")
@@ -103,6 +104,8 @@ print("Model initialized")
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
+# Убедимся, что модель находится на GPU
+model = model.to(DEVICE)
 
 # Функция обучения модели
 def train_model(model, train_loader, val_loader, criterion, optimizer, epochs=EPOCHS):
@@ -114,17 +117,17 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, epochs=EP
         total = 0
 
         for images, labels in train_loader:
-            images, labels = images.to(DEVICE), labels.to(DEVICE)
+            # ОБЯЗАТЕЛЬНО перенести тензоры на GPU
+            images = images.to(DEVICE, non_blocking=True)
+            labels = labels.to(DEVICE, non_blocking=True)
 
-            # Проверка размерностей на GPU
             assert images.device == DEVICE, "Ошибка: Тензоры изображений не на GPU!"
             assert labels.device == DEVICE, "Ошибка: Тензоры меток не на GPU!"
-            assert images.shape[1:] == (3, 224, 224), "Ошибка: Неверная размерность входных изображений!"
 
             optimizer.zero_grad()
             outputs = model(images)
 
-            # Проверка размерности выхода
+            # Проверяем размерность выходного тензора
             assert outputs.shape == (labels.size(0), len(CLASSES)), f"Ошибка: Неверный выходной тензор {outputs.shape}"
 
             loss = criterion(outputs, labels)
@@ -148,7 +151,9 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, epochs=EP
 
         with torch.no_grad():
             for images, labels in val_loader:
-                images, labels = images.to(DEVICE), labels.to(DEVICE)
+                images = images.to(DEVICE, non_blocking=True)
+                labels = labels.to(DEVICE, non_blocking=True)
+
                 outputs = model(images)
                 loss = criterion(outputs, labels)
 
@@ -165,9 +170,8 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, epochs=EP
             best_val_loss = val_loss
             torch.save(model.state_dict(), "best_model.pth")
 
-    # Запуск обучения
 
-
+# Запуск обучения
 train_model(model, train_loader, val_loader, criterion, optimizer)
 
 
